@@ -10,12 +10,12 @@ except:
 import os
 import logging
 import xlrd
-import json
 from douyin.tasks.dyuser import *
 from douyin.tasks.models import *
 from douyin.tasks.utils import *
 from douyin.tasks.consumers import AckMessageConsumer
 from douyin.tasks.producers import SyncMessageProducer
+# from douyin.utils.hubservice import Hubservice
 
 logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL, logging.INFO),
                     format='%(asctime)s %(name)s[%(process)d] %(levelname)s> %(message)s')
@@ -36,13 +36,6 @@ class ImportMessageConsumer(AckMessageConsumer):
         LOG.info('Sync Message Consumer is started...')
         self.consume(self.configs['amqp'])
         LOG.info('Sync Message Consumer is stopped')
-
-    def handle_raw_msg(self, ch, method, properties, raw_msg):
-        try:
-            msg = json.loads(raw_msg)
-            self.handle_msg(msg)
-        except Exception, e:
-            print(str(e))
 
     def handle_msg(self, msg):
         dept_id = msg.get('dept_id', 0)
@@ -69,7 +62,8 @@ class ImportMessageConsumer(AckMessageConsumer):
             if filepath:
                 admin_import.status = Utils.STATUS_SUCCESS
                 admin_import.save()
-                #os.remove(filepath)
+                os.remove(filepath)
+                print '导入成功!!!'
         except Exception, e:
             admin_import.status = Utils.STATUS_ERROR
             admin_import.save()
@@ -104,12 +98,22 @@ class ImportMessageConsumer(AckMessageConsumer):
                     'word_level': word_level,
                     'admin_id': dept_id
                 }
-                keyword = Keyword(data)
-                keyword.save()
-                keyword.save()
-            except Exception, e:
-                print e
 
+                keyword = Keyword.where('word_subject', '=', line[0]).where('dept_id', '=', dept_id).first()
+                if not keyword:
+                    keyword = Keyword(data)
+                    keyword.save()
+                else:
+                    keyword = Keyword.find(keyword.id)
+                    for k, v in data.items():
+                        setattr(keyword, k, v)
+                    keyword.save()
+            except Exception, e:
+                LOG.error(e)
+
+        producer = SyncMessageProducer(self.configs['amqp'])
+        producer.produce({'model': 'Keyword', 'operate': 'sync'})
+        producer.close()
         return filepath
 
     def handle_users_file(self, admin_import):
@@ -158,20 +162,28 @@ class ImportMessageConsumer(AckMessageConsumer):
                     'city': '',
                     'dy_user_id': 0
                 }
-                # print data
-                user = DyUser(data)
-                user.save()
-                print '第 %d 行 导入完成' % rownum
+
+                # service = Hubservice()
+                # user_data = service.create_user({'unique_id': row[0]})
+                # data = data.update(dict(user_data))
+
+                user = DyUser.where('unique_id', '=', row[0]).where('dept_id', '=', dept_id).first()
+                if not user:
+                    user = DyUser(data)
+                    user.save()
+                else:
+                    user = DyUser.find(user.id)
+                    for k,v in data.items():
+                        setattr(user, k, v)
+                    user.save()
             except Exception, e:
                 print e.message
 
         producer = SyncMessageProducer(self.configs['amqp'])
-        producer.produce({'model': 'AdminImport',
-                          'operate': 'sync'})
+        producer.produce({'model': 'AdminImport', 'operate': 'sync'})
         producer.close()
 
         return filepath
-
 
 scan = ImportMessageConsumer({
     'web_path':'D:\phpstudy_pro\WWW\douyin.app\douyin-app\public',

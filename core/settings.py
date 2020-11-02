@@ -41,3 +41,17 @@ AMQP = {
     'passwd': 'guest',
     'vhost': '/'
 }
+
+REDIS = {
+    'host': '127.0.0.1',
+    'port': 6379,
+    'db': 0
+}
+
+HUB = {
+    'client_id': 8,
+    'client_secret': 'WkT9rqTV40zWj9bHp7geqlpXvSWWmds6jowGwcb9',
+    'client_callback': 'http://douyin.test/console/auth/censor/callback',
+    'client_token_url': 'http://censor.test/oauth/token',
+    'client_api_url': 'http://censor.test/api/v1'
+}

@@ -61,6 +61,12 @@ class MessageConsumer(object):  # {{{
         # self.conn.close()
 
 
+    def handle_raw_msg(self, ch, method, properties, raw_msg):
+        try:
+            msg = json.loads(raw_msg)
+            self.handle_msg(msg)
+        except Exception, e:
+            print(str(e))
 
     def handle_msg(self, msg):
         pass
